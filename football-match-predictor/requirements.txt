@@ -1,0 +1,7 @@
+pandas
+sqlalchemy
+pymysql
+scikit-learn
+streamlit
+python-dotenv
+joblib
