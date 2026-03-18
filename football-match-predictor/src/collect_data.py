@@ -13,6 +13,8 @@ def fetch_matches() -> List[Dict]:
     return []
 
 
+
+
 def insert_matches(matches: List[Dict]) -> None:
     """Example insert structure for saving fetched matches."""
     if not matches:
