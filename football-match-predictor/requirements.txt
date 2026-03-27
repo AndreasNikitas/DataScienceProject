@@ -1,4 +1,5 @@
 pandas
+requests
 sqlalchemy
 pymysql
 scikit-learn
