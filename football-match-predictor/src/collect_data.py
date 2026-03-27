@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 from sqlalchemy import text
@@ -7,20 +7,115 @@ from sqlalchemy import text
 from db import engine
 
 _ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
+_VALID_RESULTS = {"H", "D", "A"}
+_MAX_REASONABLE_GOALS = 20
+
+
+def normalize_team_name(name: Optional[str]) -> Optional[str]:
+    """Normalize team names by trimming and collapsing repeated spaces."""
+    if not isinstance(name, str):
+        return None
+    normalized = " ".join(name.split())
+    return normalized or None
+
+
+def _safe_int(value: Any) -> Optional[int]:
+    """Parse an integer safely, returning None for empty/invalid values."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if value == "":
+            return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _derive_result(home_goals: int, away_goals: int) -> str:
+    """Derive H/D/A result from home and away goals."""
+    if home_goals > away_goals:
+        return "H"
+    if away_goals > home_goals:
+        return "A"
+    return "D"
+
+
+def _parse_match_date(raw_date: Any) -> Optional[datetime]:
+    """Parse ESPN ISO date safely."""
+    if not isinstance(raw_date, str) or not raw_date.strip():
+        return None
+    try:
+        return datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def _get_or_create_team(name: str) -> int:
     """Return the DB id for a team, inserting it if it doesn't exist yet."""
+    cleaned_name = normalize_team_name(name)
+    if cleaned_name is None:
+        raise ValueError("Team name is empty after normalization")
+
     with engine.begin() as conn:
         row = conn.execute(
-            text("SELECT id FROM teams WHERE name = :name"), {"name": name}
+            text("SELECT id FROM teams WHERE LOWER(name) = LOWER(:name)"), {"name": cleaned_name}
         ).fetchone()
         if row:
             return row[0]
         result = conn.execute(
-            text("INSERT INTO teams (name) VALUES (:name)"), {"name": name}
+            text("INSERT INTO teams (name) VALUES (:name)"), {"name": cleaned_name}
         )
         return result.lastrowid
+
+
+def clean_match(event: Dict[str, Any]) -> Optional[Dict]:
+    """Clean and normalize raw ESPN event payload into match dict.
+
+    Returns None when required fields are missing/invalid.
+    """
+    competitions = event.get("competitions")
+    if not competitions:
+        return None
+
+    competition = competitions[0]
+    competitors = competition.get("competitors", [])
+    home = next((c for c in competitors if c.get("homeAway") == "home"), None)
+    away = next((c for c in competitors if c.get("homeAway") == "away"), None)
+    if not home or not away:
+        return None
+
+    home_name = normalize_team_name(home.get("team", {}).get("displayName"))
+    away_name = normalize_team_name(away.get("team", {}).get("displayName"))
+    if home_name is None or away_name is None:
+        return None
+
+    match_date = _parse_match_date(event.get("date"))
+    if match_date is None:
+        return None
+
+    is_finished = event.get("status", {}).get("type", {}).get("state") == "post"
+    home_goals: Optional[int] = _safe_int(home.get("score")) if is_finished else None
+    away_goals: Optional[int] = _safe_int(away.get("score")) if is_finished else None
+
+    if is_finished and (home_goals is None or away_goals is None):
+        return None
+
+    result: Optional[str] = (
+        _derive_result(home_goals, away_goals)
+        if home_goals is not None and away_goals is not None
+        else None
+    )
+
+    return {
+        "match_date": match_date,
+        "home_team_id": _get_or_create_team(home_name),
+        "away_team_id": _get_or_create_team(away_name),
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "result": result,
+    }
 
 
 def fetch_matches(league: str = "eng.1", dates: Optional[str] = None) -> List[Dict]:
@@ -40,38 +135,16 @@ def fetch_matches(league: str = "eng.1", dates: Optional[str] = None) -> List[Di
     response.raise_for_status()
 
     matches: List[Dict] = []
+    skipped_unclean = 0
     for event in response.json().get("events", []):
-        competition = event["competitions"][0]
-        competitors = competition["competitors"]
-
-        home = next((c for c in competitors if c["homeAway"] == "home"), None)
-        away = next((c for c in competitors if c["homeAway"] == "away"), None)
-        if not home or not away:
+        cleaned_match = clean_match(event)
+        if cleaned_match is None:
+            skipped_unclean += 1
             continue
+        matches.append(cleaned_match)
 
-        is_finished = event["status"]["type"]["state"] == "post"
-        home_goals: Optional[int] = int(home["score"]) if is_finished else None
-        away_goals: Optional[int] = int(away["score"]) if is_finished else None
-
-        result: Optional[str] = None
-        if home_goals is not None and away_goals is not None:
-            if home_goals > away_goals:
-                result = "H"
-            elif away_goals > home_goals:
-                result = "A"
-            else:
-                result = "D"
-
-        match_date = datetime.fromisoformat(event["date"].replace("Z", "+00:00"))
-
-        matches.append({
-            "match_date": match_date,
-            "home_team_id": _get_or_create_team(home["team"]["displayName"]),
-            "away_team_id": _get_or_create_team(away["team"]["displayName"]),
-            "home_goals": home_goals,
-            "away_goals": away_goals,
-            "result": result,
-        })
+    if skipped_unclean:
+        print(f"Skipped {skipped_unclean} events with missing/invalid fields.")
 
     return matches
 
@@ -80,23 +153,72 @@ def validate_match(match: Dict) -> bool:
     """Validate match data before insertion.
     
     Checks:
-    - Goals are non-negative (if present)
-    - Home and away teams are different
-    - Date is valid
+    - match_date exists and is datetime
+    - team ids are positive and different
+    - goals are integers in a realistic range (if present)
+    - score/result are mutually consistent
     """
-    # Check goals are non-negative
-    if match["home_goals"] is not None and match["home_goals"] < 0:
+    if not isinstance(match.get("match_date"), datetime):
+        print(f"⚠️  Invalid match_date: {match.get('match_date')}")
+        return False
+
+    home_team_id = match.get("home_team_id")
+    away_team_id = match.get("away_team_id")
+    if not isinstance(home_team_id, int) or home_team_id <= 0:
+        print(f"⚠️  Invalid home_team_id: {home_team_id}")
+        return False
+    if not isinstance(away_team_id, int) or away_team_id <= 0:
+        print(f"⚠️  Invalid away_team_id: {away_team_id}")
+        return False
+
+    # Check teams are different
+    if home_team_id == away_team_id:
+        print(f"⚠️  Same team playing itself: {home_team_id}")
+        return False
+
+    home_goals = match.get("home_goals")
+    away_goals = match.get("away_goals")
+    result = match.get("result")
+
+    if home_goals is not None and not isinstance(home_goals, int):
+        print(f"⚠️  home_goals must be int/None: {home_goals}")
+        return False
+    if away_goals is not None and not isinstance(away_goals, int):
+        print(f"⚠️  away_goals must be int/None: {away_goals}")
+        return False
+
+    # Check goals are non-negative and realistic
+    if home_goals is not None and (home_goals < 0 or home_goals > _MAX_REASONABLE_GOALS):
         print(f"⚠️  Invalid home_goals: {match['home_goals']}")
         return False
-    if match["away_goals"] is not None and match["away_goals"] < 0:
+    if away_goals is not None and (away_goals < 0 or away_goals > _MAX_REASONABLE_GOALS):
         print(f"⚠️  Invalid away_goals: {match['away_goals']}")
         return False
-    
-    # Check teams are different
-    if match["home_team_id"] == match["away_team_id"]:
-        print(f"⚠️  Same team playing itself: {match['home_team_id']}")
+
+    if result is not None and result not in _VALID_RESULTS:
+        print(f"⚠️  Invalid result value: {result}")
         return False
-    
+
+    # Require goals and result to either all exist (finished) or all be null (upcoming)
+    if (home_goals is None) != (away_goals is None):
+        print("⚠️  Partial score found (one goal is missing).")
+        return False
+
+    if home_goals is None and away_goals is None:
+        if result is not None:
+            print("⚠️  Upcoming match has a result.")
+            return False
+        return True
+
+    # Finished match: ensure result matches the scoreline
+    expected_result = _derive_result(home_goals, away_goals)
+    if result != expected_result:
+        print(
+            f"⚠️  Result/score mismatch. result={result}, expected={expected_result} "
+            f"from score {home_goals}-{away_goals}"
+        )
+        return False
+
     return True
 
 

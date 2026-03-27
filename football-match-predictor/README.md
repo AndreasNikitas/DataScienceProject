@@ -46,6 +46,20 @@ python src/init_db.py
 python src/train_model.py
 ```
 
+## Data Cleaning and Quality Constraints
+- Ingestion now cleans and validates API data in `src/collect_data.py`.
+- For an existing database (already created before these changes), run:
+
+```powershell
+mysql -u root football_predictor < sql/data_quality_migration.sql
+```
+
+- Then collect fresh data:
+
+```powershell
+python src/collect_data.py
+```
+
 ## 7. Run Streamlit dashboard
 
 ```powershell
