@@ -1,5 +1,29 @@
 # football-match-predictor
 
+## Welcome
+
+Welcome to the Football Match Predictor project! This project is developed as part of our coursework to demonstrate data science and web development capabilities.
+
+## Project Overview
+
+The **Football Match Predictor** is a machine learning-based application that predicts football match outcomes using historical match data. The project integrates:
+
+- **Data Collection & Processing**: Gathering and analyzing football match data
+- **Machine Learning Model**: Training predictive models to forecast match results
+- **Database Management**: Storing and retrieving match data using MariaDB
+- **Interactive Dashboard**: A user-friendly Streamlit interface for visualizing predictions and match insights
+
+This project showcases full-stack development skills including Python programming, database design, machine learning implementation, and web-based data visualization.
+
+## Team Members
+
+| Name       |   Surname    | Student ID |
+Andreas          Nikitas        25091
+Panagiotis       Antoniou       25048
+Konstantinos     Christou       25327
+
+---
+
 Minimal starter project using Python, MariaDB, and Streamlit.
 
 ## 1. Start XAMPP (MariaDB)
