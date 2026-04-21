@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+import argparse
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -9,6 +10,21 @@ from db import engine
 _ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 _VALID_RESULTS = {"H", "D", "A"}
 _MAX_REASONABLE_GOALS = 20
+_STALE_UPCOMING_GRACE_HOURS = 6
+
+
+def _to_utc_naive(value: datetime) -> datetime:
+    """Normalize datetime to UTC-naive for consistent comparisons/writes."""
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
+def _is_stale_upcoming(match_date: datetime, grace_hours: int = _STALE_UPCOMING_GRACE_HOURS) -> bool:
+    """True when fixture date is in the past beyond grace period and still unresolved."""
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    normalized_match_date = _to_utc_naive(match_date)
+    return normalized_match_date < (now_utc - timedelta(hours=grace_hours))
 
 
 def normalize_team_name(name: Optional[str]) -> Optional[str]:
@@ -108,8 +124,12 @@ def clean_match(event: Dict[str, Any]) -> Optional[Dict]:
         else None
     )
 
+    # Do not keep unresolved fixtures that are already in the past.
+    if result is None and _is_stale_upcoming(match_date):
+        return None
+
     return {
-        "match_date": match_date,
+        "match_date": _to_utc_naive(match_date),
         "home_team_id": _get_or_create_team(home_name),
         "away_team_id": _get_or_create_team(away_name),
         "home_goals": home_goals,
@@ -208,6 +228,9 @@ def validate_match(match: Dict) -> bool:
         if result is not None:
             print("⚠️  Upcoming match has a result.")
             return False
+        if _is_stale_upcoming(match["match_date"]):
+            print(f"⚠️  Stale upcoming fixture in the past: {match['match_date']}")
+            return False
         return True
 
     # Finished match: ensure result matches the scoreline
@@ -222,22 +245,8 @@ def validate_match(match: Dict) -> bool:
     return True
 
 
-def match_exists(connection, match: Dict) -> bool:
-    """Check if a match already exists in the database."""
-    check_sql = text(
-        """
-        SELECT COUNT(*) FROM matches 
-        WHERE match_date = :match_date 
-        AND home_team_id = :home_team_id 
-        AND away_team_id = :away_team_id
-        """
-    )
-    result = connection.execute(check_sql, match).fetchone()
-    return result[0] > 0
-
-
 def insert_matches(matches: List[Dict]) -> None:
-    """Insert matches with validation and duplicate checking."""
+    """Insert matches and update existing fixtures when final score appears."""
     if not matches:
         print("No matches to insert.")
         return
@@ -246,10 +255,14 @@ def insert_matches(matches: List[Dict]) -> None:
         """
         INSERT INTO matches (match_date, home_team_id, away_team_id, home_goals, away_goals, result)
         VALUES (:match_date, :home_team_id, :away_team_id, :home_goals, :away_goals, :result)
+        ON DUPLICATE KEY UPDATE
+            home_goals = COALESCE(VALUES(home_goals), home_goals),
+            away_goals = COALESCE(VALUES(away_goals), away_goals),
+            result = COALESCE(VALUES(result), result)
         """
     )
 
-    inserted = 0
+    written = 0
     skipped = 0
     
     with engine.begin() as connection:
@@ -258,17 +271,10 @@ def insert_matches(matches: List[Dict]) -> None:
             if not validate_match(match):
                 skipped += 1
                 continue
-            
-            # Check for duplicates
-            if match_exists(connection, match):
-                skipped += 1
-                continue
-            
-            # Insert valid, non-duplicate match
             connection.execute(insert_sql, match)
-            inserted += 1
+            written += 1
 
-    print(f"Inserted {inserted} matches, skipped {skipped} duplicates/invalid.")
+    print(f"Upserted {written} matches, skipped {skipped} invalid.")
 
 
 def fetch_historical_data(league: str = "eng.1", months_back: int = 12) -> None:
@@ -304,9 +310,97 @@ def fetch_historical_data(league: str = "eng.1", months_back: int = 12) -> None:
     print(f"\nTotal matches fetched: {total_matches}")
 
 
+def fetch_upcoming_data(league: str = "eng.1", days_ahead: int = 14) -> None:
+    """Fetch upcoming fixtures for the next N days."""
+    if days_ahead <= 0:
+        return
+
+    start_date = datetime.now()
+    end_date = start_date + timedelta(days=days_ahead)
+    date_range = f"{start_date.strftime('%Y%m%d')}-{end_date.strftime('%Y%m%d')}"
+
+    print(f"Fetching upcoming fixtures for {date_range}...")
+    matches = fetch_matches(league=league, dates=date_range)
+    insert_matches(matches)
+    print(f"Fetched {len(matches)} upcoming/ongoing fixtures in lookahead window.")
+
+
+def remove_stale_upcoming_matches(grace_hours: int = _STALE_UPCOMING_GRACE_HOURS) -> None:
+    """Remove unresolved past fixtures and dependent pending artifacts."""
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=grace_hours)
+
+    with engine.begin() as conn:
+        conn.execute(text("DROP TEMPORARY TABLE IF EXISTS stale_matches"))
+        conn.execute(
+            text(
+                """
+                CREATE TEMPORARY TABLE stale_matches AS
+                SELECT id
+                FROM matches
+                WHERE result IS NULL
+                  AND match_date < :cutoff
+                """
+            ),
+            {"cutoff": cutoff},
+        )
+
+        stale_count = conn.execute(text("SELECT COUNT(*) FROM stale_matches")).scalar() or 0
+        if stale_count == 0:
+            conn.execute(text("DROP TEMPORARY TABLE IF EXISTS stale_matches"))
+            return
+
+        conn.execute(
+            text(
+                """
+                DELETE mp
+                FROM match_predictions mp
+                JOIN stale_matches sm ON sm.id = mp.match_id
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                DELETE mf
+                FROM match_features mf
+                JOIN stale_matches sm ON sm.id = mf.match_id
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                DELETE m
+                FROM matches m
+                JOIN stale_matches sm ON sm.id = m.id
+                """
+            )
+        )
+        conn.execute(text("DROP TEMPORARY TABLE IF EXISTS stale_matches"))
+
+    print(f"Removed {stale_count} stale unresolved past fixture(s).")
+
+
 def main() -> None:
-    # Fetch historical data (last 24 months for better predictions)
-    fetch_historical_data(league="eng.1", months_back=24)
+    parser = argparse.ArgumentParser(description="Collect football matches from ESPN API.")
+    parser.add_argument("--league", default="eng.1", help="ESPN league slug, e.g. eng.1, esp.1")
+    parser.add_argument(
+        "--months-back",
+        type=int,
+        default=24,
+        help="How many months of historical matches to fetch",
+    )
+    parser.add_argument(
+        "--days-ahead",
+        type=int,
+        default=14,
+        help="How many days of upcoming fixtures to fetch",
+    )
+    args = parser.parse_args()
+
+    remove_stale_upcoming_matches()
+    fetch_historical_data(league=args.league, months_back=args.months_back)
+    fetch_upcoming_data(league=args.league, days_ahead=args.days_ahead)
 
 
 if __name__ == "__main__":

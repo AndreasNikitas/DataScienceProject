@@ -34,3 +34,74 @@ CREATE TABLE IF NOT EXISTS matches (
     FOREIGN KEY (home_team_id) REFERENCES teams(id),
     FOREIGN KEY (away_team_id) REFERENCES teams(id)
 );
+
+CREATE TABLE IF NOT EXISTS match_features (
+    match_id INT PRIMARY KEY,
+    home_last5_points INT DEFAULT 0,
+    home_last5_goal_diff INT DEFAULT 0,
+    home_form_pct DECIMAL(5,2) DEFAULT 0,
+    away_last5_points INT DEFAULT 0,
+    away_last5_goal_diff INT DEFAULT 0,
+    away_form_pct DECIMAL(5,2) DEFAULT 0,
+    h2h_home_wins INT DEFAULT 0,
+    h2h_draws INT DEFAULT 0,
+    h2h_away_wins INT DEFAULT 0,
+    home_days_since_last_match DECIMAL(6,2) DEFAULT 14.0,
+    away_days_since_last_match DECIMAL(6,2) DEFAULT 14.0,
+    home_matches_last7 INT DEFAULT 0,
+    away_matches_last7 INT DEFAULT 0,
+    home_matches_last14 INT DEFAULT 0,
+    away_matches_last14 INT DEFAULT 0,
+    home_travel_penalty DECIMAL(5,3) DEFAULT 0.000,
+    away_travel_penalty DECIMAL(5,3) DEFAULT 0.000,
+    home_home_ppg_last10 DECIMAL(6,3) DEFAULT 0.000,
+    away_away_ppg_last10 DECIMAL(6,3) DEFAULT 0.000,
+    home_home_goal_diff_last10 DECIMAL(6,3) DEFAULT 0.000,
+    away_away_goal_diff_last10 DECIMAL(6,3) DEFAULT 0.000,
+    home_overall_ppg_last30 DECIMAL(6,3) DEFAULT 0.000,
+    away_overall_ppg_last30 DECIMAL(6,3) DEFAULT 0.000,
+    home_overall_goal_diff_last30 DECIMAL(6,3) DEFAULT 0.000,
+    away_overall_goal_diff_last30 DECIMAL(6,3) DEFAULT 0.000,
+    home_elo DECIMAL(8,3) DEFAULT 1500.0,
+    away_elo DECIMAL(8,3) DEFAULT 1500.0,
+    elo_diff DECIMAL(8,3) DEFAULT 0.0,
+    FOREIGN KEY (match_id) REFERENCES matches(id)
+);
+
+CREATE TABLE IF NOT EXISTS prediction_runs (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    league_slug VARCHAR(32) NOT NULL DEFAULT 'eng.1',
+    total_matches INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS match_predictions (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    run_id BIGINT NOT NULL,
+    match_id INT NOT NULL,
+    predicted_result CHAR(1) NOT NULL,
+    predicted_home_goals INT NOT NULL,
+    predicted_away_goals INT NOT NULL,
+    rf_prediction CHAR(1) NULL,
+    rf_confidence DECIMAL(6,5) NULL,
+    lr_prediction CHAR(1) NULL,
+    lr_confidence DECIMAL(6,5) NULL,
+    consensus_prediction CHAR(1) NULL,
+    actual_home_goals INT NULL,
+    actual_away_goals INT NULL,
+    actual_result CHAR(1) NULL,
+    outcome_correct TINYINT(1) NULL,
+    score_exact TINYINT(1) NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    resolved_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT chk_prediction_result_value CHECK (predicted_result IN ('H', 'D', 'A')),
+    CONSTRAINT chk_actual_result_value CHECK (actual_result IS NULL OR actual_result IN ('H', 'D', 'A')),
+    CONSTRAINT chk_prediction_status CHECK (status IN ('pending', 'resolved')),
+    UNIQUE KEY unique_run_match_prediction (run_id, match_id),
+    KEY idx_predictions_match (match_id),
+    KEY idx_predictions_status (status),
+    FOREIGN KEY (run_id) REFERENCES prediction_runs(id),
+    FOREIGN KEY (match_id) REFERENCES matches(id)
+);

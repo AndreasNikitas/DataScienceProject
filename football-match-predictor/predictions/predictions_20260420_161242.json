@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-04-20T16:12:42.828983",
+  "total_predictions": 2,
+  "predictions": [
+    {
+      "match_id": 1,
+      "date": "2026-03-20T20:00:00",
+      "home_team": "AFC Bournemouth",
+      "away_team": "Manchester United",
+      "predictions": {
+        "random_forest": {
+          "prediction": "A",
+          "confidence": 0.42824943215764244
+        },
+        "logistic_regression": {
+          "prediction": "A",
+          "confidence": 0.4789738603669804
+        },
+        "consensus": {
+          "prediction": "A",
+          "agreement": true
+        }
+      }
+    },
+    {
+      "match_id": 807,
+      "date": "2026-04-20T19:00:00",
+      "home_team": "Crystal Palace",
+      "away_team": "West Ham United",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.39753868557192185
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.44474235762413356
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      }
+    }
+  ]
+}
