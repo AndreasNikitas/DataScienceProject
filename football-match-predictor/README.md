@@ -1,29 +1,5 @@
 # football-match-predictor
 
-## Welcome
-
-Welcome to the Football Match Predictor project! This project is developed as part of our coursework to demonstrate data science and web development capabilities.
-
-## Project Overview
-
-The **Football Match Predictor** is a machine learning-based application that predicts football match outcomes using historical match data. The project integrates:
-
-- **Data Collection & Processing**: Gathering and analyzing football match data
-- **Machine Learning Model**: Training predictive models to forecast match results
-- **Database Management**: Storing and retrieving match data using MariaDB
-- **Interactive Dashboard**: A user-friendly Streamlit interface for visualizing predictions and match insights
-
-This project showcases full-stack development skills including Python programming, database design, machine learning implementation, and web-based data visualization.
-
-## Team Members
-
-| Name       |   Surname    | Student ID |
-Andreas          Nikitas        25091
-Panagiotis       Antoniou       25048
-Konstantinos     Christou       25327
-
----
-
 Minimal starter project using Python, MariaDB, and Streamlit.
 
 ## 1. Start XAMPP (MariaDB)
@@ -70,8 +46,85 @@ python src/init_db.py
 python src/train_model.py
 ```
 
+For dual-model predictions (recommended):
+
+```powershell
+python src/train_models.py
+```
+
+## Data Cleaning and Quality Constraints
+- Ingestion now cleans and validates API data in `src/collect_data.py`.
+- For an existing database (already created before these changes), run:
+
+```powershell
+mysql -u root football_predictor < sql/data_quality_migration.sql
+```
+
+- Then collect fresh data:
+
+```powershell
+python src/collect_data.py
+```
+
 ## 7. Run Streamlit dashboard
 
 ```powershell
 streamlit run dashboard/app.py
 ```
+
+## 8. Predict upcoming matches and keep accuracy history
+
+```powershell
+python src/predict_upcoming.py
+```
+
+This now:
+- Saves each upcoming match prediction in MySQL (including predicted scoreline)
+- Keeps it until final score is available
+- Automatically marks resolved predictions and stores:
+  - outcome accuracy (H/D/A correct)
+  - exact-score accuracy
+- Applies player-availability impact from ESPN roster stats/injuries when estimating scoreline
+
+## 9. Player stats / availability (injuries)
+
+CLI:
+
+```powershell
+python src/player_stats.py --league esp.1 --team Barcelona
+```
+
+Dashboard:
+- Open **👤 Player Stats**
+- Select league + team
+- View squad stats and unavailable/injury list (when present in ESPN feed)
+
+To include player availability in predictions:
+
+```powershell
+python src/predict_upcoming.py --league esp.1
+```
+
+## 10. Validate "last N matches" window (3/5/8/10)
+
+```powershell
+python src/validate_form_windows.py --windows 3 5 8 10
+```
+
+This prints train/test accuracy for both models by window and saves:
+- `models/form_window_validation_repeated.json`
+
+To repeat across many random seeds:
+
+```powershell
+python src/validate_form_windows.py --windows 3 5 8 10 --seeds 1 2 3 4 5 6 7 8 9 10
+```
+
+Current historical training features now include:
+- Form + H2H (existing)
+- Rest/fatigue (days since last match, matches in last 7/14 days)
+- Travel pressure proxy (home/away penalties from short rest and away streaks)
+- Home/away long-window strength (rolling PPG and goal diff)
+- Rolling Elo before each match (home, away, and Elo diff)
+
+Note: historical injury snapshots are not available in the current ESPN source, so injury impact is not part of model training.
