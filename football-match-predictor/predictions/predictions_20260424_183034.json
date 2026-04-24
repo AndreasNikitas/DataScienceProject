@@ -1,0 +1,720 @@
+{
+  "timestamp": "2026-04-24T18:30:34.081178",
+  "total_predictions": 17,
+  "predictions": [
+    {
+      "match_id": 811,
+      "date": "2026-04-24T19:00:00",
+      "home_team": "Sunderland",
+      "away_team": "Nottingham Forest",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.3933646136110476
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.46971877839831544
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 812,
+      "date": "2026-04-25T11:30:00",
+      "home_team": "Fulham",
+      "away_team": "Aston Villa",
+      "predictions": {
+        "random_forest": {
+          "prediction": "A",
+          "confidence": 0.39902319681325116
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.4061102316830899
+        },
+        "consensus": {
+          "prediction": "DISAGREEMENT",
+          "agreement": false
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 814,
+      "date": "2026-04-25T14:00:00",
+      "home_team": "West Ham United",
+      "away_team": "Everton",
+      "predictions": {
+        "random_forest": {
+          "prediction": "A",
+          "confidence": 0.4322700459656863
+        },
+        "logistic_regression": {
+          "prediction": "A",
+          "confidence": 0.42180252807565016
+        },
+        "consensus": {
+          "prediction": "A",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 1,
+        "away_goals": 2
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 815,
+      "date": "2026-04-25T14:00:00",
+      "home_team": "Wolverhampton Wanderers",
+      "away_team": "Tottenham Hotspur",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.4325163835437828
+        },
+        "logistic_regression": {
+          "prediction": "A",
+          "confidence": 0.4583232672869698
+        },
+        "consensus": {
+          "prediction": "DISAGREEMENT",
+          "agreement": false
+        }
+      },
+      "predicted_score": {
+        "home_goals": 1,
+        "away_goals": 2
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 813,
+      "date": "2026-04-25T14:00:00",
+      "home_team": "Liverpool",
+      "away_team": "Crystal Palace",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.47489527591447434
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.5040319616847478
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 816,
+      "date": "2026-04-25T16:30:00",
+      "home_team": "Arsenal",
+      "away_team": "Newcastle United",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.5532362529660538
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.6490810620501298
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 817,
+      "date": "2026-04-27T19:00:00",
+      "home_team": "Manchester United",
+      "away_team": "Brentford",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.4716664024277149
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.5835142877419983
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 818,
+      "date": "2026-05-01T19:00:00",
+      "home_team": "Leeds United",
+      "away_team": "Burnley",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.5235468217869299
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.5098538645128409
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 820,
+      "date": "2026-05-02T14:00:00",
+      "home_team": "Newcastle United",
+      "away_team": "Brighton & Hove Albion",
+      "predictions": {
+        "random_forest": {
+          "prediction": "A",
+          "confidence": 0.4111531909936854
+        },
+        "logistic_regression": {
+          "prediction": "A",
+          "confidence": 0.47482331473043776
+        },
+        "consensus": {
+          "prediction": "A",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 1,
+        "away_goals": 2
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 821,
+      "date": "2026-05-02T14:00:00",
+      "home_team": "Wolverhampton Wanderers",
+      "away_team": "Sunderland",
+      "predictions": {
+        "random_forest": {
+          "prediction": "A",
+          "confidence": 0.4634135753450816
+        },
+        "logistic_regression": {
+          "prediction": "A",
+          "confidence": 0.509942253043789
+        },
+        "consensus": {
+          "prediction": "A",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 1,
+        "away_goals": 2
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 819,
+      "date": "2026-05-02T14:00:00",
+      "home_team": "Brentford",
+      "away_team": "West Ham United",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.4689451354436559
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.43703497245843764
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 822,
+      "date": "2026-05-02T16:30:00",
+      "home_team": "Arsenal",
+      "away_team": "Fulham",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.5455239492644797
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.6655382859760384
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 823,
+      "date": "2026-05-03T13:00:00",
+      "home_team": "AFC Bournemouth",
+      "away_team": "Crystal Palace",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.45689713155268963
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.38523452911783457
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 824,
+      "date": "2026-05-03T14:30:00",
+      "home_team": "Manchester United",
+      "away_team": "Liverpool",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.48044688137391167
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.4843989970041114
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 825,
+      "date": "2026-05-03T18:00:00",
+      "home_team": "Aston Villa",
+      "away_team": "Tottenham Hotspur",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.5271892296420956
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.5918655056491786
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 2,
+        "away_goals": 1
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 826,
+      "date": "2026-05-04T14:00:00",
+      "home_team": "Chelsea",
+      "away_team": "Nottingham Forest",
+      "predictions": {
+        "random_forest": {
+          "prediction": "H",
+          "confidence": 0.41263811422269836
+        },
+        "logistic_regression": {
+          "prediction": "H",
+          "confidence": 0.4350346502632128
+        },
+        "consensus": {
+          "prediction": "H",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 3,
+        "away_goals": 2
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    },
+    {
+      "match_id": 827,
+      "date": "2026-05-04T19:00:00",
+      "home_team": "Everton",
+      "away_team": "Manchester City",
+      "predictions": {
+        "random_forest": {
+          "prediction": "A",
+          "confidence": 0.3954047538519706
+        },
+        "logistic_regression": {
+          "prediction": "A",
+          "confidence": 0.40685595058088575
+        },
+        "consensus": {
+          "prediction": "A",
+          "agreement": true
+        }
+      },
+      "predicted_score": {
+        "home_goals": 1,
+        "away_goals": 2
+      },
+      "player_availability": {
+        "home": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        },
+        "away": {
+          "injured_players": 0,
+          "top_scorer_absences": 0,
+          "missing_goal_share": 0.0,
+          "availability_penalty": 0.0,
+          "key_absences": [],
+          "available": true
+        }
+      }
+    }
+  ]
+}

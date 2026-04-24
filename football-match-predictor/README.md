@@ -85,7 +85,8 @@ This now:
 - Automatically marks resolved predictions and stores:
   - outcome accuracy (H/D/A correct)
   - exact-score accuracy
-- Applies player-availability impact from ESPN roster stats/injuries when estimating scoreline
+- Uses the two outcome models for `H/D/A` prediction
+- Uses two goal models to estimate the scoreline, then applies availability penalties from ESPN roster stats/injuries
 
 ## 9. Player stats / availability (injuries)
 
@@ -109,7 +110,7 @@ python src/predict_upcoming.py --league esp.1
 ## 10. Validate "last N matches" window (3/5/8/10)
 
 ```powershell
-python src/validate_form_windows.py --windows 3 5 8 10
+python src/validate_form_windows.py --windows 5 8 10 15 20
 ```
 
 This prints train/test accuracy for both models by window and saves:

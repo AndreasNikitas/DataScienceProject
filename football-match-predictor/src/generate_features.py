@@ -5,6 +5,7 @@ This script calculates predictive features from historical match data.
 These features are used for machine learning WITHOUT data leakage.
 """
 
+import argparse
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
@@ -14,6 +15,7 @@ from db import engine
 from feature_columns import TRAINING_FEATURE_COLUMNS
 
 _ELO_SNAPSHOT_CACHE: Dict[str, Dict[int, float]] = {}
+DEFAULT_FORM_WINDOW = 20
 
 
 def _to_naive(dt: datetime) -> datetime:
@@ -384,7 +386,7 @@ def ensure_match_features_columns() -> None:
             conn.execute(text(f"ALTER TABLE match_features ADD COLUMN {column} {definition}"))
 
 
-def generate_all_features() -> None:
+def generate_all_features(form_window: int = DEFAULT_FORM_WINDOW) -> None:
     ensure_match_features_columns()
 
     query = text(
@@ -408,7 +410,7 @@ def generate_all_features() -> None:
                 match_date=match_date,
                 home_team_id=home_id,
                 away_team_id=away_id,
-                form_window=5,
+                form_window=form_window,
             )
         )
 
@@ -427,8 +429,16 @@ def generate_all_features() -> None:
     with engine.begin() as conn:
         conn.execute(insert_sql, features_to_insert)
 
-    print(f"✅ Features generated for {len(features_to_insert)} matches")
+    print(f"✅ Features generated for {len(features_to_insert)} matches using form window {form_window}")
 
 
 if __name__ == "__main__":
-    generate_all_features()
+    parser = argparse.ArgumentParser(description="Generate training features for all matches.")
+    parser.add_argument(
+        "--form-window",
+        type=int,
+        default=DEFAULT_FORM_WINDOW,
+        help="Recent-form window to use when generating match_features",
+    )
+    args = parser.parse_args()
+    generate_all_features(form_window=args.form_window)

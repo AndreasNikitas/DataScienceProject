@@ -221,10 +221,18 @@ def load_model_for_prediction(model_name: str) -> Tuple[Optional[object], Option
     models_dir = Path("models")
     
     if model_name == "random_forest":
+        calibrated_path = models_dir / "random_forest_calibrated_model.pkl"
+        if calibrated_path.exists():
+            model = joblib.load(calibrated_path)
+            return model, None
         model = joblib.load(models_dir / "random_forest_model.pkl")
         return model, None
     
     elif model_name == "logistic_regression":
+        calibrated_path = models_dir / "logistic_regression_calibrated_model.pkl"
+        if calibrated_path.exists():
+            model = joblib.load(calibrated_path)
+            return model, None
         model = joblib.load(models_dir / "logistic_regression_model.pkl")
         scaler = joblib.load(models_dir / "feature_scaler.pkl")
         return model, scaler
@@ -265,10 +273,13 @@ def predict_with_both_models(features_dict: Dict) -> Dict:
     # Logistic Regression
     try:
         lr_model, scaler = load_model_for_prediction("logistic_regression")
-        if lr_model and scaler:
-            X_scaled = scaler.transform(X)
-            lr_pred = lr_model.predict(X_scaled)[0]
-            lr_proba = lr_model.predict_proba(X_scaled)[0]
+        if lr_model:
+            if scaler:
+                X_input = scaler.transform(X)
+            else:
+                X_input = X
+            lr_pred = lr_model.predict(X_input)[0]
+            lr_proba = lr_model.predict_proba(X_input)[0]
             predictions['logistic_regression'] = {
                 'prediction': lr_pred,
                 'confidence': float(np.max(lr_proba))
@@ -285,6 +296,52 @@ def predict_with_both_models(features_dict: Dict) -> Dict:
             'agreement': rf_pred == lr_pred
         }
     
+    return predictions
+
+
+def predict_goal_scores_with_both_models(features_dict: Dict) -> Dict:
+    """
+    Predict home/away goals using both goal models and return an ensemble estimate.
+    """
+    import pandas as pd
+
+    X = pd.DataFrame([features_dict])
+    predictions = {}
+    models_dir = Path("models")
+
+    try:
+        rf_goals_model = joblib.load(models_dir / "random_forest_goals_model.pkl")
+        rf_pred = rf_goals_model.predict(X)[0]
+        predictions["random_forest"] = {
+            "home_goals": float(rf_pred[0]),
+            "away_goals": float(rf_pred[1]),
+        }
+    except Exception as e:
+        print(f"⚠️  Error with Random Forest goal model: {e}")
+
+    try:
+        linear_goals_model = joblib.load(models_dir / "linear_regression_goals_model.pkl")
+        scaler = joblib.load(models_dir / "feature_scaler.pkl")
+        X_scaled = scaler.transform(X)
+        lr_pred = linear_goals_model.predict(X_scaled)[0]
+        predictions["linear_regression"] = {
+            "home_goals": float(lr_pred[0]),
+            "away_goals": float(lr_pred[1]),
+        }
+    except Exception as e:
+        print(f"⚠️  Error with Linear Regression goal model: {e}")
+
+    goal_candidates = [
+        model_prediction
+        for model_prediction in predictions.values()
+        if "home_goals" in model_prediction and "away_goals" in model_prediction
+    ]
+    if goal_candidates:
+        predictions["ensemble"] = {
+            "home_goals": float(np.mean([p["home_goals"] for p in goal_candidates])),
+            "away_goals": float(np.mean([p["away_goals"] for p in goal_candidates])),
+        }
+
     return predictions
 
 

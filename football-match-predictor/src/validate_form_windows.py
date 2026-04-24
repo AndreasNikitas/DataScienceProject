@@ -26,6 +26,7 @@ from feature_columns import TRAINING_FEATURE_COLUMNS
 from generate_features import generate_features_for_match
 
 FEATURE_COLUMNS = TRAINING_FEATURE_COLUMNS
+LOGISTIC_REGRESSION_C = 0.5
 
 
 def load_finished_matches() -> pd.DataFrame:
@@ -84,8 +85,8 @@ def evaluate_window_for_seed(dataset: pd.DataFrame, form_window: int, seed: int)
 
     lr_model = LogisticRegression(
         random_state=seed,
-        max_iter=1000,
-        multi_class="multinomial",
+        max_iter=2000,
+        C=LOGISTIC_REGRESSION_C,
         solver="lbfgs",
         n_jobs=-1,
     )
@@ -178,7 +179,7 @@ def main() -> None:
         "--windows",
         nargs="+",
         type=int,
-        default=[3, 5, 8, 10],
+        default=[5, 8, 10, 15, 20],
         help="Form windows to evaluate (e.g. --windows 3 5 8 10)",
     )
     parser.add_argument(

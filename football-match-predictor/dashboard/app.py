@@ -317,7 +317,8 @@ elif page == "👤 Player Stats":
             else:
                 st.subheader("Squad stats")
                 st.dataframe(
-                    players_df.sort_values(["goals", "assists"], ascending=False),
+                    players_df.drop(columns=["injury_count"], errors="ignore")
+                              .sort_values(["goals", "assists"], ascending=False),
                     use_container_width=True,
                 )
 
