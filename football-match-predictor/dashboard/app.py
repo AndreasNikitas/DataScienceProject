@@ -149,6 +149,8 @@ elif page == "🔮 Predictions":
 
 elif page == "✅ Accuracy":
     st.header("Model Accuracy & Evaluation")
+ 
+
     summary_df = pd.read_sql(
         """
         SELECT

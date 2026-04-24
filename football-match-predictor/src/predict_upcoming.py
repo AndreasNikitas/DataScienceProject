@@ -455,5 +455,7 @@ if __name__ == "__main__":
         default=9,
         help="Recent-form window used for feature generation (recommended: 9)",
     )
+
     args = parser.parse_args()
+    
     predict_upcoming_matches(league_slug=args.league, form_window=args.form_window)

@@ -70,6 +70,7 @@ python src/collect_data.py
 
 ```powershell
 streamlit run dashboard/app.py
+
 ```
 
 ## 8. Predict upcoming matches and keep accuracy history
