@@ -339,6 +339,7 @@ def remove_stale_upcoming_matches(grace_hours: int = _STALE_UPCOMING_GRACE_HOURS
                 FROM matches
                 WHERE result IS NULL
                   AND match_date < :cutoff
+                  AND id NOT IN (SELECT match_id FROM match_predictions)
                 """
             ),
             {"cutoff": cutoff},
