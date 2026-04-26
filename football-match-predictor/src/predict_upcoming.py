@@ -16,8 +16,8 @@ from sqlalchemy import text
 
 from db import engine
 from feature_columns import TRAINING_FEATURE_COLUMNS
-from generate_features import calculate_team_form, generate_features_for_match
-from model_comparison import predict_with_both_models
+from generate_features import generate_features_for_match
+from model_comparison import predict_goal_scores_with_both_models, predict_with_both_models
 from player_stats import get_team_availability_impact
 
 
@@ -62,55 +62,6 @@ def _clamp_score(value: float) -> int:
     return max(0, min(6, int(round(value))))
 
 
-def _get_goal_baseline() -> Tuple[float, float]:
-    query = text(
-        """
-        SELECT AVG(home_goals), AVG(away_goals)
-        FROM matches
-        WHERE result IS NOT NULL
-        """
-    )
-    with engine.connect() as conn:
-        row = conn.execute(query).fetchone()
-
-    if not row:
-        return 1.4, 1.1
-    home_avg = float(row[0]) if row[0] is not None else 1.4
-    away_avg = float(row[1]) if row[1] is not None else 1.1
-    return home_avg, away_avg
-
-
-def estimate_scoreline(
-    match_date: datetime,
-    home_team_id: int,
-    away_team_id: int,
-    home_penalty: float = 0.0,
-    away_penalty: float = 0.0,
-) -> Dict[str, int]:
-    home_form = calculate_team_form(home_team_id, match_date, num_matches=10)
-    away_form = calculate_team_form(away_team_id, match_date, num_matches=10)
-    baseline_home, baseline_away = _get_goal_baseline()
-
-    home_matches = max(home_form["matches_played"], 1)
-    away_matches = max(away_form["matches_played"], 1)
-
-    home_attack = home_form["goals_scored"] / home_matches if home_form["matches_played"] else baseline_home
-    home_defense = home_form["goals_conceded"] / home_matches if home_form["matches_played"] else baseline_away
-    away_attack = away_form["goals_scored"] / away_matches if away_form["matches_played"] else baseline_away
-    away_defense = away_form["goals_conceded"] / away_matches if away_form["matches_played"] else baseline_home
-
-    expected_home_goals = ((home_attack + away_defense) / 2) * 1.08
-    expected_away_goals = ((away_attack + home_defense) / 2) * 0.95
-
-    expected_home_goals = expected_home_goals * (1 - max(0.0, min(home_penalty, 0.35)))
-    expected_away_goals = expected_away_goals * (1 - max(0.0, min(away_penalty, 0.35)))
-
-    return {
-        "home_goals": _clamp_score(expected_home_goals),
-        "away_goals": _clamp_score(expected_away_goals),
-    }
-
-
 def _primary_prediction(predictions: Dict) -> str:
     consensus = predictions.get("consensus")
     if consensus and consensus.get("agreement"):
@@ -126,6 +77,61 @@ def _primary_prediction(predictions: Dict) -> str:
     if not candidates:
         raise ValueError("No model predictions available.")
     return max(candidates, key=lambda c: c[0])[1]
+
+
+def _apply_availability_penalty(goals: float, penalty: float) -> float:
+    bounded_penalty = max(0.0, min(penalty, 0.35))
+    return max(0.0, goals * (1.0 - bounded_penalty))
+
+
+def _align_score_to_result(home_goals: int, away_goals: int, expected_result: str) -> Dict[str, int]:
+    actual_result = _derive_result_from_score(home_goals, away_goals)
+    if actual_result == expected_result:
+        return {"home_goals": home_goals, "away_goals": away_goals}
+
+    if expected_result == "H":
+        home_goals = max(home_goals, away_goals + 1)
+    elif expected_result == "A":
+        away_goals = max(away_goals, home_goals + 1)
+    else:
+        shared_goals = int(round((home_goals + away_goals) / 2))
+        home_goals = shared_goals
+        away_goals = shared_goals
+
+    return {
+        "home_goals": _clamp_score(home_goals),
+        "away_goals": _clamp_score(away_goals),
+    }
+
+
+def predict_scoreline(
+    features: Dict,
+    home_penalty: float = 0.0,
+    away_penalty: float = 0.0,
+    expected_result: Optional[str] = None,
+) -> Dict[str, object]:
+    goal_predictions = predict_goal_scores_with_both_models(features)
+    ensemble = goal_predictions.get("ensemble")
+    if not ensemble:
+        raise ValueError("No goal model predictions available. Run: python src/train_models.py first")
+
+    scoreline = {
+        "home_goals": _clamp_score(
+            _apply_availability_penalty(float(ensemble["home_goals"]), home_penalty)
+        ),
+        "away_goals": _clamp_score(
+            _apply_availability_penalty(float(ensemble["away_goals"]), away_penalty)
+        ),
+    }
+
+    if expected_result in {"H", "D", "A"}:
+        scoreline = _align_score_to_result(
+            scoreline["home_goals"],
+            scoreline["away_goals"],
+            expected_result,
+        )
+
+    return {**scoreline, "models": goal_predictions}
 
 
 def create_prediction_run(league_slug: str, total_matches: int) -> int:
@@ -148,9 +154,6 @@ def store_prediction(
     predicted_away_goals: int,
 ) -> None:
     primary_prediction = _primary_prediction(predictions)
-    expected_result = _derive_result_from_score(predicted_home_goals, predicted_away_goals)
-    if primary_prediction != expected_result:
-        primary_prediction = expected_result
 
     rf = predictions.get("random_forest")
     lr = predictions.get("logistic_regression")
@@ -253,7 +256,7 @@ def build_feature_input(features: Dict) -> Dict:
     return {column: float(features.get(column, 0.0)) for column in TRAINING_FEATURE_COLUMNS}
 
 
-def predict_upcoming_matches(league_slug: str = "eng.1", form_window: int = 9):
+def predict_upcoming_matches(league_slug: str = "eng.1", form_window: int = 20):
     """Predict results for all upcoming matches using both models."""
     reconciled = reconcile_resolved_predictions()
     if reconciled:
@@ -308,6 +311,7 @@ def predict_upcoming_matches(league_slug: str = "eng.1", form_window: int = 9):
         
         # Make predictions with both models
         predictions = predict_with_both_models(feature_input)
+        primary_prediction = _primary_prediction(predictions)
         home_team_name = str(match["home_team"])
         away_team_name = str(match["away_team"])
         home_cache_key = (league_slug, home_team_name)
@@ -321,12 +325,11 @@ def predict_upcoming_matches(league_slug: str = "eng.1", form_window: int = 9):
         home_availability = availability_cache[home_cache_key]
         away_availability = availability_cache[away_cache_key]
 
-        scoreline = estimate_scoreline(
-            match["match_date"],
-            int(match["home_team_id"]),
-            int(match["away_team_id"]),
+        scoreline = predict_scoreline(
+            feature_input,
             home_penalty=float(home_availability.get("availability_penalty", 0.0)),
             away_penalty=float(away_availability.get("availability_penalty", 0.0)),
+            expected_result=primary_prediction,
         )
         store_prediction(
             run_id=run_id,
@@ -368,20 +371,32 @@ def predict_upcoming_matches(league_slug: str = "eng.1", form_window: int = 9):
             f"   ⚽ Predicted score: {match['home_team']} {scoreline['home_goals']} - "
             f"{scoreline['away_goals']} {match['away_team']}"
         )
+        if "models" in scoreline:
+            goal_models = scoreline["models"]
+            if "random_forest" in goal_models:
+                rf_goals = goal_models["random_forest"]
+                print(
+                    f"      Goal model RF: {rf_goals['home_goals']:.2f} - "
+                    f"{rf_goals['away_goals']:.2f}"
+                )
+            if "linear_regression" in goal_models:
+                lr_goals = goal_models["linear_regression"]
+                print(
+                    f"      Goal model LinReg: {lr_goals['home_goals']:.2f} - "
+                    f"{lr_goals['away_goals']:.2f}"
+                )
         
         # Team form
         print(f"\n   📊 Team Form:")
-        print(f"      {match['home_team']}: {features['home_last5_points']} pts (last 5), "
+        print(f"      {match['home_team']}: {features['home_last5_points']} pts (last {form_window}), "
               f"{features['home_form_pct']:.1f}% form")
-        print(f"      {match['away_team']}: {features['away_last5_points']} pts (last 5), "
+        print(f"      {match['away_team']}: {features['away_last5_points']} pts (last {form_window}), "
               f"{features['away_form_pct']:.1f}% form")
         print(
             "\n   👤 Player Availability Impact:"
             f"\n      {home_team_name}: penalty {home_availability.get('availability_penalty', 0.0):.1%},"
-            f" injuries {home_availability.get('injured_players', 0)},"
             f" key absences {', '.join(home_availability.get('key_absences', [])) or 'none'}"
             f"\n      {away_team_name}: penalty {away_availability.get('availability_penalty', 0.0):.1%},"
-            f" injuries {away_availability.get('injured_players', 0)},"
             f" key absences {', '.join(away_availability.get('key_absences', [])) or 'none'}"
         )
         
@@ -452,8 +467,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--form-window",
         type=int,
-        default=9,
-        help="Recent-form window used for feature generation (recommended: 9)",
+        default=20,
+        help="Recent-form window used for feature generation (recommended: 20)",
     )
 
     args = parser.parse_args()

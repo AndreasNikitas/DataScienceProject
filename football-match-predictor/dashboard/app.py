@@ -1,5 +1,5 @@
 """
-Football Match Predictor Dashboard
+Football Match Predictor — Dashboard
 """
 
 import sys
@@ -14,81 +14,180 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from db import engine
 from player_stats import get_team_player_report
 
-st.set_page_config(page_title="Football Match Predictor", page_icon="🏆", layout="wide")
-st.title("🏆 Football Match Predictor Dashboard")
-
-page = st.sidebar.radio(
-    "Navigate",
-    [
-        "🎯 Dashboard",
-        "🔮 Predictions",
-        "✅ Accuracy",
-        "📈 Statistics",
-        "👤 Player Stats",
-        "🏥 Data Quality",
-    ],
+# ── Page config ────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Football Predictor",
+    page_icon="⚽",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-if page == "🎯 Dashboard":
-    st.header("Welcome to Football Match Predictor")
+# ── Global CSS ─────────────────────────────────────────────────
+st.markdown("""
+<style>
+    #MainMenu, footer, header { visibility: hidden; }
+    [data-testid="stToolbar"] { display: none; }
+    .block-container { padding-top: 2rem; max-width: 1100px; }
 
-    col1, col2, col3 = st.columns(3)
+    /* prediction card outcome box */
+    .outcome-box {
+        background: #1e3a5f;
+        color: white;
+        border-radius: 10px;
+        padding: 20px 12px;
+        text-align: center;
+    }
+    .outcome-label {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0 0 6px 0;
+    }
+    .outcome-sub {
+        font-size: 12px;
+        opacity: 0.75;
+        margin: 2px 0;
+    }
 
-    with col1:
-        result = pd.read_sql("SELECT COUNT(*) as count FROM matches", engine)
-        st.metric("Total Matches", result["count"].values[0] if not result.empty else 0)
+    /* team name in prediction row */
+    .team-name {
+        font-size: 18px;
+        font-weight: 600;
+        text-align: center;
+        margin: 6px 0 2px 0;
+    }
+    .team-role {
+        text-align: center;
+        color: #94a3b8;
+        font-size: 12px;
+        margin: 0;
+    }
+    .match-date {
+        text-align: center;
+        color: #64748b;
+        font-size: 13px;
+        margin-bottom: 10px;
+    }
 
-    with col2:
-        result = pd.read_sql("SELECT COUNT(*) as count FROM teams", engine)
-        st.metric("Teams", result["count"].values[0] if not result.empty else 0)
+    /* page header */
+    .page-title {
+        font-size: 26px;
+        font-weight: 700;
+        color: #1e3a5f;
+        margin-bottom: 2px;
+    }
+    .page-sub {
+        color: #64748b;
+        font-size: 14px;
+        margin-bottom: 24px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-    with col3:
-        result = pd.read_sql("SELECT COUNT(*) as count FROM matches WHERE result IS NOT NULL", engine)
-        st.metric("Finished Matches", result["count"].values[0] if not result.empty else 0)
+# ── Navigation ─────────────────────────────────────────────────
+PAGES = ["Overview", "Predictions", "Results", "Teams", "Players"]
+page = st.sidebar.radio("Navigation", PAGES, label_visibility="collapsed")
+
+OUTCOME_MAP = {"H": "Home Win", "D": "Draw", "A": "Away Win"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# OVERVIEW
+# ═══════════════════════════════════════════════════════════════
+if page == "Overview":
+    st.markdown('<p class="page-title">⚽ Football Match Predictor</p>', unsafe_allow_html=True)
+    st.markdown('<p class="page-sub">ML-powered predictions using Random Forest & Logistic Regression</p>', unsafe_allow_html=True)
+
+    # ── Database stats ──
+    total   = pd.read_sql("SELECT COUNT(*) AS n FROM matches", engine).iloc[0]["n"]
+    teams   = pd.read_sql("SELECT COUNT(*) AS n FROM teams", engine).iloc[0]["n"]
+    finished = pd.read_sql("SELECT COUNT(*) AS n FROM matches WHERE result IS NOT NULL", engine).iloc[0]["n"]
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Matches", int(total))
+    c2.metric("Teams", int(teams))
+    c3.metric("Finished Matches", int(finished))
 
     st.markdown("---")
-    st.subheader("📋 System Overview")
-    st.markdown(
-        """
-        This dashboard uses **two ML models** for predictions:
-        - **Random Forest**: Ensemble learning
-        - **Logistic Regression**: Linear classification
 
-        Features analyzed:
-        - Recent team form
-        - Goal trends
-        - Head-to-head history
-        """
-    )
-
-elif page == "🔮 Predictions":
-    st.header("Upcoming Match Predictions")
-    stale_df = pd.read_sql(
-        """
+    # ── Prediction accuracy ──
+    acc = pd.read_sql("""
         SELECT
-            COUNT(*) AS stale_matches
-        FROM matches
-        WHERE result IS NULL
-          AND match_date < UTC_TIMESTAMP()
-        """,
-        engine,
-    )
-    stale_matches = int(stale_df.iloc[0]["stale_matches"]) if not stale_df.empty else 0
-    if stale_matches > 0:
-        st.warning(
-            f"{stale_matches} match(es) are in the past but still have no final result. "
-            "Run data collection to refresh completed scores."
-        )
+            COUNT(*) AS resolved,
+            AVG(recent.outcome_correct) * 100 AS outcome_pct,
+            AVG(CASE WHEN recent.rf_prediction = recent.actual_result THEN 1 ELSE 0 END) * 100 AS rf_pct,
+            AVG(CASE WHEN recent.lr_prediction = recent.actual_result THEN 1 ELSE 0 END) * 100 AS lr_pct
+        FROM (
+            SELECT mp.*
+            FROM (
+                SELECT mp1.*
+                FROM match_predictions mp1
+                JOIN (
+                    SELECT match_id, MAX(id) AS id
+                    FROM match_predictions
+                    WHERE status = 'resolved'
+                    GROUP BY match_id
+                ) latest
+                  ON latest.id = mp1.id
+            ) mp
+            ORDER BY mp.resolved_at DESC, mp.id DESC
+            LIMIT 30
+        ) recent
+    """, engine).iloc[0]
 
-    upcoming_df = pd.read_sql(
-        """
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Predictions Resolved", int(acc["resolved"] or 0))
+    c2.metric("Overall Accuracy",     f"{float(acc['outcome_pct'] or 0):.1f}%")
+    c3.metric("Random Forest",        f"{float(acc['rf_pct'] or 0):.1f}%")
+    c4.metric("Logistic Regression",  f"{float(acc['lr_pct'] or 0):.1f}%")
+
+    st.markdown("---")
+
+    # ── How it works ──
+    st.markdown("### How it works")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("**1. Data Collection**")
+        st.write("Match results and upcoming fixtures are pulled from the ESPN API and stored in a MySQL database.")
+    with c2:
+        st.markdown("**2. Feature Engineering**")
+        st.write("28 numbers are calculated per match — team form, ELO rating, rest days, head-to-head record, and more.")
+    with c3:
+        st.markdown("**3. Prediction**")
+        st.write("Two ML models (Random Forest + Logistic Regression) independently predict the outcome. Their agreement or disagreement is shown.")
+
+
+# ═══════════════════════════════════════════════════════════════
+# PREDICTIONS
+# ═══════════════════════════════════════════════════════════════
+elif page == "Predictions":
+    st.markdown('<p class="page-title">Upcoming Predictions</p>', unsafe_allow_html=True)
+    st.markdown('<p class="page-sub">What the models predict for matches yet to be played</p>', unsafe_allow_html=True)
+
+    # Warn if matches are stuck without a result
+    stale = int(pd.read_sql("""
+        SELECT COUNT(*) AS n FROM matches
+        WHERE result IS NULL AND match_date < UTC_TIMESTAMP()
+    """, engine).iloc[0]["n"])
+    if stale > 0:
+        st.warning(f"{stale} match(es) are in the past with no result yet — run: python3 src/collect_data.py")
+
+    unpredicted = int(pd.read_sql("""
+        SELECT COUNT(*) AS n
+        FROM matches m
+        LEFT JOIN match_predictions mp ON mp.match_id = m.id AND mp.status = 'pending'
+        WHERE m.result IS NULL AND m.match_date >= UTC_TIMESTAMP() AND mp.id IS NULL
+    """, engine).iloc[0]["n"])
+    if unpredicted > 0:
+        st.warning(f"{unpredicted} upcoming match(es) have no predictions yet — run: python3 src/predict_upcoming.py")
+
+    df = pd.read_sql("""
         SELECT
             m.match_date,
             t1.name AS home_team,
             t2.name AS away_team,
+            mp.predicted_result,
             mp.predicted_home_goals,
             mp.predicted_away_goals,
-            mp.predicted_result,
             mp.rf_prediction,
             mp.rf_confidence,
             mp.lr_prediction,
@@ -96,256 +195,280 @@ elif page == "🔮 Predictions":
         FROM matches m
         JOIN teams t1 ON m.home_team_id = t1.id
         JOIN teams t2 ON m.away_team_id = t2.id
-        LEFT JOIN (
+        JOIN (
             SELECT mp1.*
             FROM match_predictions mp1
             JOIN (
-                SELECT match_id, MAX(created_at) AS created_at
+                SELECT match_id, MAX(id) AS id
                 FROM match_predictions
+                WHERE status = 'pending'
                 GROUP BY match_id
-            ) latest
-              ON latest.match_id = mp1.match_id
-             AND latest.created_at = mp1.created_at
+            ) latest ON latest.id = mp1.id
         ) mp ON mp.match_id = m.id
-        WHERE m.result IS NULL
-          AND m.match_date >= UTC_TIMESTAMP()
+        WHERE m.result IS NULL AND m.match_date >= UTC_TIMESTAMP()
         ORDER BY m.match_date ASC
-        LIMIT 100
-        """,
-        engine,
-    )
+        LIMIT 50
+    """, engine)
 
-    if upcoming_df.empty:
-        st.info("No upcoming matches with stored predictions yet. Run: python src/predict_upcoming.py")
+    if df.empty:
+        st.info("No upcoming predictions found. Run: python3 src/predict_upcoming.py")
     else:
-        outcome_map = {"H": "Home", "D": "Draw", "A": "Away"}
-        upcoming_df["predicted_winner"] = upcoming_df["predicted_result"].map(outcome_map)
-        upcoming_df["rf_outcome"] = upcoming_df["rf_prediction"].map(outcome_map)
-        upcoming_df["lr_outcome"] = upcoming_df["lr_prediction"].map(outcome_map)
-        for col in ("rf_confidence", "lr_confidence"):
-            upcoming_df[col] = (upcoming_df[col] * 100).round(1).astype(str) + "%"
+        for _, row in df.iterrows():
+            date_str  = pd.to_datetime(row["match_date"]).strftime("%a %d %b %Y · %H:%M")
+            predicted = OUTCOME_MAP.get(row["predicted_result"], "—")
+            rf_conf   = f"{float(row['rf_confidence'] or 0) * 100:.0f}%" if row["rf_confidence"] else "—"
+            lr_conf   = f"{float(row['lr_confidence'] or 0) * 100:.0f}%" if row["lr_confidence"] else "—"
+            agreed    = row["rf_prediction"] == row["lr_prediction"]
+            agreement = "✓ Both models agree" if agreed else "⚠ Models disagree"
 
-        st.dataframe(
-            upcoming_df[
-                [
-                    "match_date",
-                    "home_team",
-                    "away_team",
-                    "predicted_home_goals",
-                    "predicted_away_goals",
-                    "predicted_winner",
-                    "rf_outcome",
-                    "rf_confidence",
-                    "lr_outcome",
-                    "lr_confidence",
-                ]
-            ],
-            use_container_width=True,
-        )
-        st.caption(
-            "RF/LR confidence = model probability for its own H/D/A outcome prediction, "
-            "not confidence on exact score."
-        )
+            col_home, col_mid, col_away = st.columns([2, 2, 2])
 
-elif page == "✅ Accuracy":
-    st.header("Model Accuracy & Evaluation")
- 
+            with col_home:
+                st.markdown(f"<p class='match-date'>{date_str}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p class='team-name'>{row['home_team']}</p>", unsafe_allow_html=True)
+                st.markdown("<p class='team-role'>HOME</p>", unsafe_allow_html=True)
 
-    summary_df = pd.read_sql(
-        """
+            with col_mid:
+                st.markdown(f"""
+                <div class="outcome-box">
+                    <p class="outcome-label">{predicted}</p>
+                    <p class="outcome-sub">{agreement}</p>
+                    <p class="outcome-sub">RF {rf_conf} &nbsp;·&nbsp; LR {lr_conf}</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col_away:
+                st.markdown("<p class='match-date'>&nbsp;</p>", unsafe_allow_html=True)
+                st.markdown(f"<p class='team-name'>{row['away_team']}</p>", unsafe_allow_html=True)
+                st.markdown("<p class='team-role'>AWAY</p>", unsafe_allow_html=True)
+
+            st.markdown("<hr style='border:none;border-top:1px solid #f1f5f9;margin:12px 0'>",
+                        unsafe_allow_html=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+# RESULTS
+# ═══════════════════════════════════════════════════════════════
+elif page == "Results":
+    st.markdown('<p class="page-title">Prediction Results</p>', unsafe_allow_html=True)
+    st.markdown('<p class="page-sub">How accurate were the models on matches that have already been played?</p>', unsafe_allow_html=True)
+
+    acc = pd.read_sql("""
         SELECT
-            COUNT(*) AS resolved_matches,
-            AVG(outcome_correct) * 100 AS outcome_accuracy,
-            AVG(score_exact) * 100 AS exact_score_accuracy,
-            AVG(CASE WHEN rf_prediction = actual_result THEN 1 ELSE 0 END) * 100 AS rf_accuracy,
-            AVG(CASE WHEN lr_prediction = actual_result THEN 1 ELSE 0 END) * 100 AS lr_accuracy,
-            AVG(CASE
-                WHEN consensus_prediction IS NOT NULL AND consensus_prediction = actual_result THEN 1
-                ELSE 0
-            END) * 100 AS consensus_accuracy
-        FROM match_predictions
-        WHERE status = 'resolved'
-        """,
-        engine,
-    )
-    summary = summary_df.iloc[0] if not summary_df.empty else None
-    resolved_matches = int(summary["resolved_matches"] or 0) if summary is not None else 0
-
-    if resolved_matches == 0:
-        st.info("No resolved predictions yet. After matches finish, run prediction pipeline again.")
-    else:
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.metric("Resolved matches", resolved_matches)
-        with c2:
-            st.metric("Outcome accuracy", f"{float(summary['outcome_accuracy']):.1f}%")
-        with c3:
-            st.metric("Exact score accuracy", f"{float(summary['exact_score_accuracy']):.1f}%")
-
-        model_accuracy = pd.DataFrame(
-            {
-                "model": ["Random Forest", "Logistic Regression", "Consensus"],
-                "accuracy_pct": [
-                    float(summary["rf_accuracy"] or 0.0),
-                    float(summary["lr_accuracy"] or 0.0),
-                    float(summary["consensus_accuracy"] or 0.0),
-                ],
-            }
-        )
-        st.subheader("Outcome accuracy by model")
-        st.bar_chart(model_accuracy.set_index("model"))
-
-        trend_df = pd.read_sql(
-            """
-            SELECT
-                DATE_FORMAT(resolved_at, '%%Y-%%m') AS month,
-                AVG(outcome_correct) * 100 AS outcome_accuracy,
-                AVG(score_exact) * 100 AS exact_score_accuracy
+            COUNT(*) AS resolved,
+            AVG(outcome_correct) * 100 AS outcome_pct,
+            AVG(CASE WHEN rf_prediction = actual_result THEN 1 ELSE 0 END) * 100 AS rf_pct,
+            AVG(CASE WHEN lr_prediction = actual_result THEN 1 ELSE 0 END) * 100 AS lr_pct
+        FROM match_predictions mp
+        JOIN (
+            SELECT match_id, MAX(id) AS id
             FROM match_predictions
             WHERE status = 'resolved'
-            GROUP BY DATE_FORMAT(resolved_at, '%%Y-%%m')
-            ORDER BY month
-            """,
-            engine,
-        )
-        if not trend_df.empty:
-            st.subheader("Accuracy trend by month")
-            st.line_chart(trend_df.set_index("month"))
+            GROUP BY match_id
+        ) latest ON latest.id = mp.id
+    """, engine).iloc[0]
 
-        recent_df = pd.read_sql(
-            """
+    resolved = int(acc["resolved"] or 0)
+
+    if resolved == 0:
+        st.info("No resolved predictions yet. Run: python3 src/backtest.py")
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Matches Resolved",   resolved)
+        c2.metric("Overall Accuracy",   f"{float(acc['outcome_pct'] or 0):.1f}%")
+        c3.metric("Random Forest",      f"{float(acc['rf_pct'] or 0):.1f}%")
+        c4.metric("Logistic Regression", f"{float(acc['lr_pct'] or 0):.1f}%")
+
+        st.markdown("---")
+
+        # Model accuracy bar chart
+        st.subheader("Model Comparison")
+        chart_df = pd.DataFrame({
+            "Model": ["Random Forest", "Logistic Regression"],
+            "Accuracy (%)": [float(acc["rf_pct"] or 0), float(acc["lr_pct"] or 0)],
+        }).set_index("Model")
+        st.bar_chart(chart_df)
+
+        st.markdown("---")
+
+        # Recent predictions table
+        recent = pd.read_sql("""
             SELECT
                 m.match_date,
                 t1.name AS home_team,
                 t2.name AS away_team,
-                mp.rf_prediction,
-                mp.rf_confidence,
-                mp.lr_prediction,
-                mp.lr_confidence,
                 mp.predicted_result,
                 mp.actual_result,
-                mp.outcome_correct,
-                mp.score_exact
-            FROM match_predictions mp
-            JOIN matches m ON m.id = mp.match_id
-            JOIN teams t1 ON m.home_team_id = t1.id
-            JOIN teams t2 ON m.away_team_id = t2.id
-            WHERE mp.status = 'resolved'
-            ORDER BY mp.resolved_at DESC
-            LIMIT 30
-            """,
-            engine,
-        )
-        if not recent_df.empty:
-            outcome_map = {"H": "Home", "D": "Draw", "A": "Away"}
-            recent_df["rf_outcome"] = recent_df["rf_prediction"].map(outcome_map)
-            recent_df["lr_outcome"] = recent_df["lr_prediction"].map(outcome_map)
-            recent_df["predicted_outcome"] = recent_df["predicted_result"].map(outcome_map)
-            recent_df["actual_outcome"] = recent_df["actual_result"].map(outcome_map)
-            recent_df["rf_confidence"] = (recent_df["rf_confidence"] * 100).round(1).astype(str) + "%"
-            recent_df["lr_confidence"] = (recent_df["lr_confidence"] * 100).round(1).astype(str) + "%"
-            recent_df["outcome_correct"] = recent_df["outcome_correct"].map({1: "✅", 0: "❌"})
-            recent_df["score_exact"] = recent_df["score_exact"].map({1: "✅", 0: "❌"})
-            st.subheader("Recent resolved predictions")
+                mp.rf_confidence,
+                mp.lr_confidence,
+                mp.outcome_correct
+            FROM matches m
+            JOIN teams t1 ON t1.id = m.home_team_id
+            JOIN teams t2 ON t2.id = m.away_team_id
+            JOIN (
+                SELECT mp1.*
+                FROM match_predictions mp1
+                JOIN (
+                    SELECT match_id, MAX(id) AS id
+                    FROM match_predictions
+                    WHERE status = 'resolved'
+                    GROUP BY match_id
+                ) latest
+                  ON latest.id = mp1.id
+            ) mp ON mp.match_id = m.id
+            ORDER BY mp.resolved_at DESC, mp.id DESC
+        """, engine)
+
+        if not recent.empty:
+            st.subheader("Recent Predictions")
+            recent["Date"]      = pd.to_datetime(recent["match_date"]).dt.strftime("%d %b %Y")
+            recent["Predicted"] = recent["predicted_result"].map(OUTCOME_MAP)
+            recent["Actual"]    = recent["actual_result"].map(OUTCOME_MAP)
+            recent["RF Conf"]   = (recent["rf_confidence"] * 100).round(1).astype(str) + "%"
+            recent["LR Conf"]   = (recent["lr_confidence"] * 100).round(1).astype(str) + "%"
+            recent["Correct"]   = recent["outcome_correct"].map({1: "✅", 0: "❌"})
+
             st.dataframe(
-                recent_df[
-                    [
-                        "match_date",
-                        "home_team",
-                        "away_team",
-                        "rf_outcome",
-                        "rf_confidence",
-                        "lr_outcome",
-                        "lr_confidence",
-                        "predicted_outcome",
-                        "actual_outcome",
-                        "outcome_correct",
-                        "score_exact",
-                    ]
-                ],
+                recent[["Date", "home_team", "away_team", "Predicted", "Actual",
+                         "RF Conf", "LR Conf", "Correct"]]
+                .rename(columns={"home_team": "Home Team", "away_team": "Away Team"}),
                 use_container_width=True,
+                hide_index=True,
             )
 
 
-elif page == "📈 Statistics":
-    st.header("Team Statistics")
+# ═══════════════════════════════════════════════════════════════
+# TEAMS
+# ═══════════════════════════════════════════════════════════════
+elif page == "Teams":
+    st.markdown('<p class="page-title">Team Statistics</p>', unsafe_allow_html=True)
+    st.markdown('<p class="page-sub">Season record and recent results for any team in the database</p>', unsafe_allow_html=True)
 
-    query = """
-        SELECT
-            t.name as team,
-            COUNT(*) as matches,
-            SUM(CASE WHEN m.result = 'H' THEN 1 ELSE 0 END) as wins
-        FROM matches m
-        JOIN teams t ON m.home_team_id = t.id
-        WHERE m.result IS NOT NULL
-        GROUP BY t.id
-        ORDER BY wins DESC
-        LIMIT 10
-    """
-    df = pd.read_sql(query, engine)
-
-    if not df.empty:
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.info("No statistics available")
-
-elif page == "👤 Player Stats":
-    st.header("Player Statistics & Availability")
-    st.caption("Uses ESPN roster feed, including injuries/unavailability when provided.")
-
-    league_slug = st.selectbox("League", ["eng.1", "esp.1", "ita.1", "ger.1", "fra.1"], index=0)
-    teams_df = pd.read_sql("SELECT DISTINCT name FROM teams ORDER BY name ASC", engine)
+    teams_df = pd.read_sql("SELECT name FROM teams ORDER BY name ASC", engine)
     if teams_df.empty:
-        st.info("No teams found in the local DB yet. Run data collection first.")
-        selected_team = None
+        st.info("No teams found. Run: python3 src/collect_data.py")
     else:
-        default_team = "Barcelona" if "Barcelona" in teams_df["name"].values else teams_df["name"].iloc[0]
-        selected_team = st.selectbox(
-            "Team",
-            teams_df["name"].tolist(),
-            index=teams_df["name"].tolist().index(default_team),
-        )
+        selected = st.selectbox("Select a team", teams_df["name"].tolist())
 
-    if selected_team and st.button("Load player stats", type="primary"):
-        try:
-            report = get_team_player_report(league_slug, selected_team)
-            players_df = report["players"]
-            unavailable_df = report["unavailable"]
+        # Season stats
+        stats = pd.read_sql(f"""
+            SELECT
+                COUNT(*) AS matches,
+                SUM(CASE
+                    WHEN (home_team_id = t.id AND result = 'H')
+                      OR (away_team_id = t.id AND result = 'A') THEN 1 ELSE 0
+                END) AS wins,
+                SUM(CASE WHEN result = 'D' THEN 1 ELSE 0 END) AS draws,
+                SUM(CASE
+                    WHEN (home_team_id = t.id AND result = 'A')
+                      OR (away_team_id = t.id AND result = 'H') THEN 1 ELSE 0
+                END) AS losses,
+                SUM(CASE WHEN home_team_id = t.id THEN home_goals ELSE away_goals END) AS scored,
+                SUM(CASE WHEN home_team_id = t.id THEN away_goals ELSE home_goals END) AS conceded
+            FROM matches m
+            JOIN teams t ON (m.home_team_id = t.id OR m.away_team_id = t.id)
+            WHERE t.name = '{selected}' AND m.result IS NOT NULL
+        """, engine).iloc[0]
 
-            if players_df.empty:
-                st.warning("No player data returned for this team.")
-            else:
-                st.subheader("Squad stats")
-                st.dataframe(
-                    players_df.sort_values(["goals", "assists"], ascending=False),
-                    use_container_width=True,
-                )
+        matches = int(stats["matches"] or 0)
+        wins    = int(stats["wins"]    or 0)
+        win_rate = (wins / matches * 100) if matches > 0 else 0
 
-            st.subheader("Unavailable / Injuries")
-            if unavailable_df.empty:
-                st.success("No unavailable players reported in current feed.")
-            else:
-                st.dataframe(unavailable_df, use_container_width=True)
-        except requests.HTTPError as exc:
-            st.error(f"Failed to fetch player feed: {exc}")
-        except ValueError as exc:
-            st.error(str(exc))
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
+        c1.metric("Matches",  matches)
+        c2.metric("Wins",     wins)
+        c3.metric("Draws",    int(stats["draws"]    or 0))
+        c4.metric("Losses",   int(stats["losses"]   or 0))
+        c5.metric("Win Rate", f"{win_rate:.1f}%")
+        c6.metric("Scored / Conceded", f"{int(stats['scored'] or 0)} / {int(stats['conceded'] or 0)}")
 
-elif page == "🏥 Data Quality":
-    st.header("Data Quality")
+        st.markdown("---")
 
-    query = """
-        SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN result IS NOT NULL THEN 1 ELSE 0 END) as finished
-        FROM matches
-    """
-    df = pd.read_sql(query, engine)
+        # Last 10 results
+        form = pd.read_sql(f"""
+            SELECT
+                m.match_date,
+                t1.name AS home_team,
+                t2.name AS away_team,
+                m.home_goals,
+                m.away_goals,
+                m.result,
+                CASE WHEN m.home_team_id = t.id THEN 'Home' ELSE 'Away' END AS venue
+            FROM matches m
+            JOIN teams t  ON (m.home_team_id = t.id OR m.away_team_id = t.id)
+            JOIN teams t1 ON m.home_team_id = t1.id
+            JOIN teams t2 ON m.away_team_id = t2.id
+            WHERE t.name = '{selected}' AND m.result IS NOT NULL
+            ORDER BY m.match_date DESC
+            LIMIT 10
+        """, engine)
 
-    if not df.empty:
-        row = df.iloc[0]
-        st.metric("Total Matches", row["total"])
-        st.metric("Finished Matches", row["finished"])
+        if not form.empty:
+            st.subheader("Last 10 Results")
 
+            def get_outcome(row):
+                if row["venue"] == "Home":
+                    return "W" if row["result"] == "H" else ("D" if row["result"] == "D" else "L")
+                return "W" if row["result"] == "A" else ("D" if row["result"] == "D" else "L")
+
+            form["W/D/L"] = form.apply(get_outcome, axis=1)
+            form["Score"] = form["home_goals"].astype(str) + " - " + form["away_goals"].astype(str)
+            form["Date"]  = pd.to_datetime(form["match_date"]).dt.strftime("%d %b %Y")
+
+            st.dataframe(
+                form[["Date", "home_team", "away_team", "Score", "venue", "W/D/L"]]
+                .rename(columns={"home_team": "Home", "away_team": "Away", "venue": "Venue"}),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════
+# PLAYERS
+# ═══════════════════════════════════════════════════════════════
+elif page == "Players":
+    st.markdown('<p class="page-title">Player Availability</p>', unsafe_allow_html=True)
+    st.markdown('<p class="page-sub">Squad stats and unavailable players from the ESPN roster feed</p>', unsafe_allow_html=True)
+
+    league_slug = st.selectbox("League", ["eng.1", "esp.1", "ita.1", "ger.1", "fra.1"])
+    teams_df = pd.read_sql("SELECT name FROM teams ORDER BY name ASC", engine)
+
+    if teams_df.empty:
+        st.info("No teams found. Run: python3 src/collect_data.py")
+    else:
+        selected = st.selectbox("Team", teams_df["name"].tolist())
+
+        if st.button("Load", type="primary"):
+            try:
+                report         = get_team_player_report(league_slug, selected)
+                players_df     = report["players"]
+                unavailable_df = report["unavailable"]
+
+                if not players_df.empty:
+                    st.subheader("Squad")
+                    st.dataframe(
+                        players_df.drop(columns=["injury_count"], errors="ignore")
+                                  .sort_values(["goals", "assists"], ascending=False),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+                st.subheader("Unavailable Players")
+                if unavailable_df.empty:
+                    st.success("No unavailable players reported.")
+                else:
+                    st.dataframe(unavailable_df, use_container_width=True, hide_index=True)
+
+            except requests.HTTPError as e:
+                st.error(f"Could not fetch player data: {e}")
+            except ValueError as e:
+                st.error(str(e))
+
+# ── Footer ─────────────────────────────────────────────────────
 st.markdown("---")
-st.markdown("Football Match Predictor | ML-powered predictions")
+st.markdown(
+    "<p style='text-align:center;color:#94a3b8;font-size:13px'>"
+    "Football Match Predictor · Random Forest & Logistic Regression · Built with Streamlit"
+    "</p>",
+    unsafe_allow_html=True,
+)
