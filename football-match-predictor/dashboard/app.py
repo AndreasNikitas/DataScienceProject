@@ -171,6 +171,15 @@ elif page == "Predictions":
     if stale > 0:
         st.warning(f"{stale} match(es) are in the past with no result yet — run: python3 src/collect_data.py")
 
+    unpredicted = int(pd.read_sql("""
+        SELECT COUNT(*) AS n
+        FROM matches m
+        LEFT JOIN match_predictions mp ON mp.match_id = m.id AND mp.status = 'pending'
+        WHERE m.result IS NULL AND m.match_date >= UTC_TIMESTAMP() AND mp.id IS NULL
+    """, engine).iloc[0]["n"])
+    if unpredicted > 0:
+        st.warning(f"{unpredicted} upcoming match(es) have no predictions yet — run: python3 src/predict_upcoming.py")
+
     df = pd.read_sql("""
         SELECT
             m.match_date,
@@ -186,15 +195,15 @@ elif page == "Predictions":
         FROM matches m
         JOIN teams t1 ON m.home_team_id = t1.id
         JOIN teams t2 ON m.away_team_id = t2.id
-        LEFT JOIN (
+        JOIN (
             SELECT mp1.*
             FROM match_predictions mp1
             JOIN (
-                SELECT match_id, MAX(created_at) AS created_at
-                FROM match_predictions GROUP BY match_id
-            ) latest
-              ON latest.match_id  = mp1.match_id
-             AND latest.created_at = mp1.created_at
+                SELECT match_id, MAX(id) AS id
+                FROM match_predictions
+                WHERE status = 'pending'
+                GROUP BY match_id
+            ) latest ON latest.id = mp1.id
         ) mp ON mp.match_id = m.id
         WHERE m.result IS NULL AND m.match_date >= UTC_TIMESTAMP()
         ORDER BY m.match_date ASC
@@ -207,11 +216,6 @@ elif page == "Predictions":
         for _, row in df.iterrows():
             date_str  = pd.to_datetime(row["match_date"]).strftime("%a %d %b %Y · %H:%M")
             predicted = OUTCOME_MAP.get(row["predicted_result"], "—")
-            predicted_score = (
-                f"{int(row['predicted_home_goals'])}-{int(row['predicted_away_goals'])}"
-                if pd.notna(row["predicted_home_goals"]) and pd.notna(row["predicted_away_goals"])
-                else "—"
-            )
             rf_conf   = f"{float(row['rf_confidence'] or 0) * 100:.0f}%" if row["rf_confidence"] else "—"
             lr_conf   = f"{float(row['lr_confidence'] or 0) * 100:.0f}%" if row["lr_confidence"] else "—"
             agreed    = row["rf_prediction"] == row["lr_prediction"]
@@ -228,7 +232,6 @@ elif page == "Predictions":
                 st.markdown(f"""
                 <div class="outcome-box">
                     <p class="outcome-label">{predicted}</p>
-                    <p class="outcome-sub">Predicted score: {predicted_score}</p>
                     <p class="outcome-sub">{agreement}</p>
                     <p class="outcome-sub">RF {rf_conf} &nbsp;·&nbsp; LR {lr_conf}</p>
                 </div>
@@ -256,8 +259,13 @@ elif page == "Results":
             AVG(outcome_correct) * 100 AS outcome_pct,
             AVG(CASE WHEN rf_prediction = actual_result THEN 1 ELSE 0 END) * 100 AS rf_pct,
             AVG(CASE WHEN lr_prediction = actual_result THEN 1 ELSE 0 END) * 100 AS lr_pct
-        FROM match_predictions
-        WHERE status = 'resolved'
+        FROM match_predictions mp
+        JOIN (
+            SELECT match_id, MAX(id) AS id
+            FROM match_predictions
+            WHERE status = 'resolved'
+            GROUP BY match_id
+        ) latest ON latest.id = mp.id
     """, engine).iloc[0]
 
     resolved = int(acc["resolved"] or 0)
@@ -309,7 +317,6 @@ elif page == "Results":
                   ON latest.id = mp1.id
             ) mp ON mp.match_id = m.id
             ORDER BY mp.resolved_at DESC, mp.id DESC
-            LIMIT 30
         """, engine)
 
         if not recent.empty:
@@ -373,7 +380,7 @@ elif page == "Teams":
         c3.metric("Draws",    int(stats["draws"]    or 0))
         c4.metric("Losses",   int(stats["losses"]   or 0))
         c5.metric("Win Rate", f"{win_rate:.1f}%")
-        c6.metric("Goals",    f"{int(stats['scored'] or 0)} / {int(stats['conceded'] or 0)}")
+        c6.metric("Scored / Conceded", f"{int(stats['scored'] or 0)} / {int(stats['conceded'] or 0)}")
 
         st.markdown("---")
 
