@@ -130,7 +130,6 @@ if page == "Overview":
                   ON latest.id = mp1.id
             ) mp
             ORDER BY mp.resolved_at DESC, mp.id DESC
-            LIMIT 30
         ) recent
     """, engine).iloc[0]
 
