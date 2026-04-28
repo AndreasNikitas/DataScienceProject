@@ -19,14 +19,37 @@ st.set_page_config(
     page_title="Football Predictor",
     page_icon="⚽",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 # ── Global CSS ─────────────────────────────────────────────────
 st.markdown("""
 <style>
-    #MainMenu, footer, header { visibility: hidden; }
+    #MainMenu, footer { visibility: hidden; }
     [data-testid="stToolbar"] { display: none; }
+    [data-testid="stHeader"] {
+        background: transparent;
+        height: 0;
+    }
+    /* Hide the collapse button so the sidebar stays open */
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="baseButton-headerNoPadding"],
+    button[kind="headerNoPadding"] {
+        display: none !important;
+    }
+    /* Force sidebar to always be visible */
+    [data-testid="stSidebar"] {
+        transform: none !important;
+        visibility: visible !important;
+        min-width: 244px !important;
+        max-width: 244px !important;
+        margin-left: 0 !important;
+        left: 0 !important;
+    }
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        margin-left: 0 !important;
+        transform: none !important;
+    }
     .block-container { padding-top: 2rem; max-width: 1100px; }
 
     /* prediction card outcome box */
